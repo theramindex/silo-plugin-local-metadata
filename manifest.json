@@ -1,0 +1,38 @@
+{
+  "plugin_id": "silo.local-metadata",
+  "version": "0.1.0",
+  "checksum": "__CHECKSUM__",
+  "silo_api_version": "v1",
+  "supported_platforms": [
+    {
+      "os": "darwin",
+      "arch": "arm64"
+    },
+    {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64"
+    }
+  ],
+  "capabilities": [
+    {
+      "type": "metadata_provider.v1",
+      "id": "local-metadata",
+      "display_name": "Silo Local Metadata",
+      "description": "Reads read-only NFO metadata and local sidecar artwork next to the media file.",
+      "metadata": {
+        "default_priority": {
+          "movie": 1,
+          "series": 1,
+          "season": 1,
+          "episode": 1
+        }
+      }
+    }
+  ],
+  "global_config_schema": [],
+  "category": "Video/Metadata"
+}

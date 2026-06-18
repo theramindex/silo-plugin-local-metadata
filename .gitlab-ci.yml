@@ -1,0 +1,33 @@
+stages:
+  - test
+  - build
+
+default:
+  image: golang:1.26
+  interruptible: true
+  before_script:
+    - go version
+  cache:
+    key: "$CI_PROJECT_ID-go"
+    paths:
+      - .cache/go-build
+      - .cache/gomod
+
+variables:
+  GOCACHE: "$CI_PROJECT_DIR/.cache/go-build"
+  GOMODCACHE: "$CI_PROJECT_DIR/.cache/gomod"
+  CGO_ENABLED: "0"
+
+test:
+  stage: test
+  script:
+    - go test ./...
+
+build:
+  stage: build
+  script:
+    - make checksums BINARY=plugin VERSION="${CI_COMMIT_TAG#v}"
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week

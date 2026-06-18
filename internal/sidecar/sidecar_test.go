@@ -1,0 +1,127 @@
+package sidecar
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestLookupReadsSameBasenameNFO(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	media := filepath.Join(dir, "Example Movie (2024).mkv")
+	writeFile(t, media, "")
+	writeFile(t, filepath.Join(dir, "Example Movie (2024).nfo"), `<movie>
+  <title>Sidecar Title</title>
+  <originaltitle>Original Sidecar Title</originaltitle>
+  <sorttitle>Sidecar, Title</sorttitle>
+  <plot>A local overview.</plot>
+  <tagline>Local tagline.</tagline>
+  <year>2024</year>
+  <runtime>112 min</runtime>
+  <genre>Drama / Mystery</genre>
+  <studio>Example Studio</studio>
+  <country>US</country>
+  <mpaa>PG-13</mpaa>
+  <premiered>2024-05-01</premiered>
+  <imdbid>tt1234567</imdbid>
+  <tmdbid>98765</tmdbid>
+  <rating name="imdb"><value>7.4</value></rating>
+  <actor><name>Jane Example</name><role>Lead</role><order>2</order></actor>
+</movie>`)
+
+	got, err := NewProvider().Lookup(media)
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Lookup() returned nil")
+	}
+	if got.Item.Title != "Sidecar Title" {
+		t.Fatalf("Title = %q", got.Item.Title)
+	}
+	if got.Item.Year != 2024 {
+		t.Fatalf("Year = %d", got.Item.Year)
+	}
+	if got.Item.RuntimeMinutes != 112 {
+		t.Fatalf("RuntimeMinutes = %d", got.Item.RuntimeMinutes)
+	}
+	if got.Item.ProviderIDs["imdb"] != "tt1234567" || got.Item.ProviderIDs["tmdb"] != "98765" {
+		t.Fatalf("ProviderIDs = %#v", got.Item.ProviderIDs)
+	}
+	if got.Item.Ratings["imdb"] != 7.4 {
+		t.Fatalf("Ratings = %#v", got.Item.Ratings)
+	}
+	if len(got.Item.People) != 1 || got.Item.People[0].Name != "Jane Example" || got.Item.People[0].Character != "Lead" {
+		t.Fatalf("People = %#v", got.Item.People)
+	}
+}
+
+func TestLookupFindsOnlySameBasenameImages(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	media := filepath.Join(dir, "Show - S01E02.mkv")
+	writeFile(t, media, "")
+	writeFile(t, filepath.Join(dir, "Show - S01E02-poster.png"), "png")
+	writeFile(t, filepath.Join(dir, "Show - S01E02-fanart.jpg"), "jpg")
+	writeFile(t, filepath.Join(dir, "poster.png"), "ignored")
+	writeFile(t, filepath.Join(dir, "tvshow.nfo"), "<tvshow><title>Ignored</title></tvshow>")
+
+	got, err := NewProvider().Lookup(media)
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Lookup() returned nil")
+	}
+	if len(got.Images) != 2 {
+		t.Fatalf("Images length = %d, images = %#v", len(got.Images), got.Images)
+	}
+	for _, img := range got.Images {
+		if filepath.Base(img.Path) == "poster.png" {
+			t.Fatalf("generic poster.png should not be treated as same-basename sidecar: %#v", got.Images)
+		}
+	}
+}
+
+func TestLookupReturnsNilWhenNoSidecarExists(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	media := filepath.Join(dir, "No Metadata.mkv")
+	writeFile(t, media, "")
+
+	got, err := NewProvider().Lookup(media)
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	if got != nil {
+		t.Fatalf("Lookup() = %#v, want nil", got)
+	}
+}
+
+func TestResolveImageUsesFileURLForExistingSidecarPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	image := filepath.Join(dir, "Movie-poster.jpg")
+	writeFile(t, image, "jpg")
+
+	got, err := NewProvider().ResolveImage(Scheme + image)
+	if err != nil {
+		t.Fatalf("ResolveImage() error = %v", err)
+	}
+	want := "file://" + filepath.ToSlash(image)
+	if got != want {
+		t.Fatalf("ResolveImage() = %q, want %q", got, want)
+	}
+}
+
+func writeFile(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}

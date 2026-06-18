@@ -1,0 +1,5 @@
+/dist/
+/plugin
+/silo-local-metadata
+*.test
+.DS_Store
