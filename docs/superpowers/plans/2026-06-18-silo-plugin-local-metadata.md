@@ -65,7 +65,7 @@ Run: `go test ./...`
 
 - [x] **Step 1: Add plugin manifest**
 
-Declare `silo.local-metadata` with `metadata_provider.v1` capability id `local-metadata`.
+Declare `silo.ramindex.local-metadata` with `metadata_provider.v1` capability id `local-metadata`.
 
 - [x] **Step 2: Add README**
 

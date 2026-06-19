@@ -1,6 +1,6 @@
 # Silo Local Metadata
 
-`silo.local-metadata` is a read-only metadata provider plugin that exposes
+`silo.ramindex.local-metadata` is a read-only metadata provider plugin that exposes
 Jellyfin-compatible NFO files and local artwork sidecars to Silo's
 `metadata_provider.v1` pipeline.
 

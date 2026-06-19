@@ -1,6 +1,6 @@
 # Operations & Debugging
 
-Operator-facing notes for `silo.local-metadata`.
+Operator-facing notes for `silo.ramindex.local-metadata`.
 
 ## Request Lifecycle
 
