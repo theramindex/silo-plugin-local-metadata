@@ -114,7 +114,12 @@ func TestMetadataServerGetMetadataUsesFilePathSidecar(t *testing.T) {
 	dir := t.TempDir()
 	media := filepath.Join(dir, "Movie.mkv")
 	mustWrite(t, media, "")
-	mustWrite(t, filepath.Join(dir, "Movie.nfo"), `<movie><title>Local Movie</title><year>2025</year></movie>`)
+	mustWrite(t, filepath.Join(dir, "Movie.nfo"), `<movie>
+  <title>Local Movie</title>
+  <year>2025</year>
+  <director>Local Director</director>
+  <actor><name>Local Actor</name><role>Lead</role><order>1</order></actor>
+</movie>`)
 	mustWrite(t, filepath.Join(dir, "Movie-poster.jpg"), "jpg")
 
 	ms := &metadataServer{
@@ -141,6 +146,23 @@ func TestMetadataServerGetMetadataUsesFilePathSidecar(t *testing.T) {
 	}
 	if got := resp.GetItem().GetProviderIds().AsMap()["local"]; got == "" {
 		t.Fatalf("local provider id missing from ProviderIds: %#v", resp.GetItem().GetProviderIds().AsMap())
+	}
+	people := resp.GetItem().GetPeople()
+	if len(people) != 2 {
+		t.Fatalf("People length = %d, people = %#v", len(people), people)
+	}
+	byName := map[string]*pluginv1.PersonRecord{}
+	for _, person := range people {
+		byName[person.GetName()] = person
+	}
+	if got := byName["Local Actor"].GetKind(); got != "Actor" {
+		t.Fatalf("Local Actor Kind = %q, want Actor", got)
+	}
+	if got := byName["Local Actor"].GetCharacter(); got != "Lead" {
+		t.Fatalf("Local Actor Character = %q, want Lead", got)
+	}
+	if got := byName["Local Director"].GetKind(); got != "Director" {
+		t.Fatalf("Local Director Kind = %q, want Director", got)
 	}
 }
 

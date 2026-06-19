@@ -175,12 +175,8 @@ func (p *Provider) parseNFO(path string) (Item, error) {
 			stack = append(stack, name)
 			text[len(stack)] = &strings.Builder{}
 			switch name {
-			case "actor", "director", "writer":
-				kind := name
-				if kind == "actor" {
-					kind = "cast"
-				}
-				currentPerson = &Person{Kind: kind, SortOrder: len(item.People)}
+			case "actor":
+				currentPerson = &Person{Kind: "Actor", SortOrder: len(item.People)}
 			case "rating":
 				currentRatingName = attr(t, "name")
 				if currentRatingName == "" {
@@ -260,6 +256,10 @@ func applyField(item *Item, person *Person, ratingName, name, value string) {
 		item.Studios = appendUnique(item.Studios, splitList(value)...)
 	case "country":
 		item.Countries = appendUnique(item.Countries, splitList(value)...)
+	case "director":
+		appendPeople(item, "Director", value)
+	case "writer":
+		appendPeople(item, "Writer", value)
 	case "mpaa", "certification", "contentrating", "customrating":
 		item.ContentRating = value
 	case "original_language", "originallanguage":
@@ -294,6 +294,16 @@ func applyField(item *Item, person *Person, ratingName, name, value string) {
 			item.Metadata = ensureMetadata(item.Metadata)
 			item.Metadata[name+"_number"] = n
 		}
+	}
+}
+
+func appendPeople(item *Item, kind, value string) {
+	for _, name := range splitList(value) {
+		item.People = append(item.People, Person{
+			Name:      name,
+			Kind:      kind,
+			SortOrder: len(item.People),
+		})
 	}
 }
 

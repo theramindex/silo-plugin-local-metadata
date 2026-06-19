@@ -56,6 +56,9 @@ func TestLookupReadsSameBasenameNFO(t *testing.T) {
 	if len(got.Item.People) != 1 || got.Item.People[0].Name != "Jane Example" || got.Item.People[0].Character != "Lead" {
 		t.Fatalf("People = %#v", got.Item.People)
 	}
+	if got.Item.People[0].Kind != "Actor" {
+		t.Fatalf("People[0].Kind = %q, want Actor", got.Item.People[0].Kind)
+	}
 }
 
 func TestLookupReadsJellyfinMovieFolderNFO(t *testing.T) {
@@ -85,6 +88,47 @@ func TestLookupReadsJellyfinMovieFolderNFO(t *testing.T) {
 	}
 	if got.Item.Metadata["sidecar_nfo_path"] != filepath.Join(filepath.Dir(media), "movie.nfo") {
 		t.Fatalf("sidecar_nfo_path = %#v", got.Item.Metadata["sidecar_nfo_path"])
+	}
+}
+
+func TestLookupMapsJellyfinPeopleToSiloKinds(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	media := filepath.Join(dir, "People Movie.mkv")
+	writeFile(t, media, "")
+	writeFile(t, filepath.Join(dir, "People Movie.nfo"), `<movie>
+  <title>People Movie</title>
+  <director>Mohammad Banki</director>
+  <writer>Writer One / Writer Two</writer>
+  <actor><name>Hamid Askari</name><order>0</order></actor>
+</movie>`)
+
+	got, err := NewProvider().Lookup(media, "movie")
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Lookup() returned nil")
+	}
+
+	want := map[string]string{
+		"Mohammad Banki": "Director",
+		"Writer One":     "Writer",
+		"Writer Two":     "Writer",
+		"Hamid Askari":   "Actor",
+	}
+	for _, person := range got.Item.People {
+		if want[person.Name] == "" {
+			t.Fatalf("unexpected person %#v in %#v", person, got.Item.People)
+		}
+		if person.Kind != want[person.Name] {
+			t.Fatalf("person %q kind = %q, want %q", person.Name, person.Kind, want[person.Name])
+		}
+		delete(want, person.Name)
+	}
+	if len(want) > 0 {
+		t.Fatalf("missing people %#v from %#v", want, got.Item.People)
 	}
 }
 
