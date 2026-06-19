@@ -47,9 +47,12 @@ func (s *runtimeServer) Configure(context.Context, *pluginv1.ConfigureRequest) (
 func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataRequest) (*pluginv1.SearchMetadataResponse, error) {
 	title := strings.TrimSpace(req.GetQuery())
 	itemType := strings.TrimSpace(req.GetItemType())
-	if title == "" || !supportsSearchItemType(itemType) {
-		debugf("local-metadata: Search skipped item_type=%q query=%q year=%d", req.GetItemType(), req.GetQuery(), req.GetYear())
+	if !supportsSearchItemType(itemType) {
+		debugf("local-metadata: Search skipped item_type=%q query=%q year=%d reason=unsupported_item_type", req.GetItemType(), req.GetQuery(), req.GetYear())
 		return &pluginv1.SearchMetadataResponse{}, nil
+	}
+	if title == "" {
+		title = "Local Metadata"
 	}
 
 	providerID := localSearchProviderID(itemType, title, req.GetYear())

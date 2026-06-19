@@ -40,7 +40,7 @@ func TestMetadataServerSearchReturnsSyntheticLocalCandidate(t *testing.T) {
 	}
 }
 
-func TestMetadataServerSearchSkipsEmptyQuery(t *testing.T) {
+func TestMetadataServerSearchReturnsSyntheticCandidateForEmptyQuery(t *testing.T) {
 	t.Parallel()
 
 	ms := &metadataServer{
@@ -52,8 +52,30 @@ func TestMetadataServerSearchSkipsEmptyQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search() error = %v", err)
 	}
-	if len(resp.GetResults()) != 0 {
-		t.Fatalf("Search() results = %#v, want empty", resp.GetResults())
+	results := resp.GetResults()
+	if len(results) != 1 {
+		t.Fatalf("Search() results length = %d, want 1", len(results))
+	}
+	if got := results[0].GetTitle(); got != "Local Metadata" {
+		t.Fatalf("Title = %q, want Local Metadata", got)
+	}
+}
+
+func TestMetadataServerSearchSkipsUnsupportedItemType(t *testing.T) {
+	t.Parallel()
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	resp, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{
+		Query:    "Local Movie",
+		ItemType: "album",
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if got := len(resp.GetResults()); got != 0 {
+		t.Fatalf("Search() results length = %d, want 0", got)
 	}
 }
 
