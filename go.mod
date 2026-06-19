@@ -1,4 +1,4 @@
-module github.com/theramindex/silo-local-metadata
+module github.com/theramindex/silo-plugin-local-metadata
 
 go 1.26.0
 

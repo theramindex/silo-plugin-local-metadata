@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/theramindex/silo-local-metadata/provider"
+	"github.com/theramindex/silo-plugin-local-metadata/provider"
 )
 
 func TestMetadataServerGetMetadataUsesFilePathSidecar(t *testing.T) {

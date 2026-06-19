@@ -42,7 +42,7 @@ jobs:
       - name: Build release binaries
         run: |
           make checksums BINARY=plugin VERSION="${{ steps.version.outputs.version }}"
-          make catalog-assets BINARY=plugin PLUGIN_SLUG=silo-local-metadata VERSION="${{ steps.version.outputs.version }}"
+          make catalog-assets BINARY=plugin PLUGIN_SLUG=silo-plugin-local-metadata VERSION="${{ steps.version.outputs.version }}"
 
       - name: Publish source release
         env:

@@ -60,8 +60,8 @@ Run: `go test ./...`
 **Files:**
 - Create: `manifest.json`
 - Create: `README.md`
-- Create: `docs/superpowers/specs/2026-06-18-silo-local-metadata-design.md`
-- Create: `docs/superpowers/plans/2026-06-18-silo-local-metadata.md`
+- Create: `docs/superpowers/specs/2026-06-18-silo-plugin-local-metadata-design.md`
+- Create: `docs/superpowers/plans/2026-06-18-silo-plugin-local-metadata.md`
 
 - [x] **Step 1: Add plugin manifest**
 

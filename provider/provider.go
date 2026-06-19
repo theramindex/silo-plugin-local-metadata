@@ -3,7 +3,7 @@ package provider
 import (
 	"context"
 
-	"github.com/theramindex/silo-local-metadata/internal/sidecar"
+	"github.com/theramindex/silo-plugin-local-metadata/internal/sidecar"
 )
 
 type MetadataRequest struct {

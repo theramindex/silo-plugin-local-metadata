@@ -13,8 +13,8 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
 	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
-	"github.com/theramindex/silo-local-metadata/internal/sidecar"
-	"github.com/theramindex/silo-local-metadata/provider"
+	"github.com/theramindex/silo-plugin-local-metadata/internal/sidecar"
+	"github.com/theramindex/silo-plugin-local-metadata/provider"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".

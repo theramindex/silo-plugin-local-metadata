@@ -4,7 +4,7 @@
 same-basename NFO files and local artwork sidecars to Silo's
 `metadata_provider.v1` pipeline.
 
-Repository: https://github.com/theramindex/silo-local-metadata
+Repository: https://github.com/theramindex/silo-plugin-local-metadata
 
 ## Category
 
