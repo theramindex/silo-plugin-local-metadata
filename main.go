@@ -21,6 +21,8 @@ import (
 // version is set at build time via -ldflags "-X main.version=...".
 var version string
 
+const localProviderIDKey = "local"
+
 type runtimeServer struct {
 	pluginv1.UnimplementedRuntimeServer
 
@@ -57,7 +59,10 @@ func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataR
 
 	providerID := localSearchProviderID(itemType, title, req.GetYear())
 	debugf("local-metadata: Search matched item_type=%q query=%q year=%d provider_id=%q", itemType, title, req.GetYear(), providerID)
-	providerIDs, err := stringStruct(map[string]string{sidecar.CapabilityID: providerID})
+	providerIDs, err := stringStruct(map[string]string{
+		localProviderIDKey:   providerID,
+		sidecar.CapabilityID: providerID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +178,10 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 }
 
 func metadataItemFromResult(result *sidecar.LookupResult, itemType string) (*pluginv1.MetadataItem, error) {
-	rawProviderIDs := map[string]string{sidecar.CapabilityID: result.ProviderID}
+	rawProviderIDs := map[string]string{
+		localProviderIDKey:   result.ProviderID,
+		sidecar.CapabilityID: result.ProviderID,
+	}
 	for key, value := range result.Item.ProviderIDs {
 		if value != "" {
 			rawProviderIDs[key] = value

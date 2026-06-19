@@ -35,7 +35,11 @@ func TestMetadataServerSearchReturnsSyntheticLocalCandidate(t *testing.T) {
 	if result.GetProviderId() == "" {
 		t.Fatal("ProviderId is empty")
 	}
-	if got := result.GetProviderIds().AsMap()["local-metadata"]; got != result.GetProviderId() {
+	providerIDs := result.GetProviderIds().AsMap()
+	if got := providerIDs["local"]; got != result.GetProviderId() {
+		t.Fatalf("provider_ids[local] = %v, want %q", got, result.GetProviderId())
+	}
+	if got := providerIDs["local-metadata"]; got != result.GetProviderId() {
 		t.Fatalf("provider_ids[local-metadata] = %v, want %q", got, result.GetProviderId())
 	}
 }
@@ -109,6 +113,9 @@ func TestMetadataServerGetMetadataUsesFilePathSidecar(t *testing.T) {
 	}
 	if got := resp.GetItem().GetProviderIds().AsMap()["local-metadata"]; got == "" {
 		t.Fatalf("local-metadata provider id missing from ProviderIds: %#v", resp.GetItem().GetProviderIds().AsMap())
+	}
+	if got := resp.GetItem().GetProviderIds().AsMap()["local"]; got == "" {
+		t.Fatalf("local provider id missing from ProviderIds: %#v", resp.GetItem().GetProviderIds().AsMap())
 	}
 }
 
