@@ -48,10 +48,12 @@ func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataR
 	title := strings.TrimSpace(req.GetQuery())
 	itemType := strings.TrimSpace(req.GetItemType())
 	if title == "" || !supportsSearchItemType(itemType) {
+		debugf("local-metadata: Search skipped item_type=%q query=%q year=%d", req.GetItemType(), req.GetQuery(), req.GetYear())
 		return &pluginv1.SearchMetadataResponse{}, nil
 	}
 
 	providerID := localSearchProviderID(itemType, title, req.GetYear())
+	debugf("local-metadata: Search matched item_type=%q query=%q year=%d provider_id=%q", itemType, title, req.GetYear(), providerID)
 	providerIDs, err := stringStruct(map[string]string{sidecar.CapabilityID: providerID})
 	if err != nil {
 		return nil, err
@@ -287,4 +289,21 @@ func supportsSearchItemType(itemType string) bool {
 func localSearchProviderID(itemType, title string, year int32) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("local-search\x00%s\x00%s\x00%d", strings.ToLower(itemType), strings.ToLower(title), year)))
 	return hex.EncodeToString(sum[:])[:24]
+}
+
+func debugf(format string, args ...any) {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("SILO_LOCAL_METADATA_DEBUG")))
+	if value != "1" && value != "true" && value != "yes" && value != "on" {
+		return
+	}
+	path := strings.TrimSpace(os.Getenv("SILO_LOCAL_METADATA_DEBUG_LOG"))
+	if path == "" {
+		path = "/tmp/silo-local-metadata-debug.log"
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+	_, _ = fmt.Fprintf(file, format+"\n", args...)
 }
