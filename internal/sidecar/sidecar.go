@@ -78,15 +78,19 @@ func NewProviderWithFS(fs FS) *Provider {
 	return &Provider{fs: fs}
 }
 
-func (p *Provider) Lookup(mediaPath string) (*LookupResult, error) {
+func (p *Provider) Lookup(mediaPath string, itemTypes ...string) (*LookupResult, error) {
 	mediaPath = strings.TrimSpace(mediaPath)
 	if mediaPath == "" {
 		return nil, nil
 	}
+	itemType := ""
+	if len(itemTypes) > 0 {
+		itemType = itemTypes[0]
+	}
 
 	var item Item
-	nfoPath := sidecarPath(mediaPath, ".nfo")
-	if exists(p.fs, nfoPath) {
+	nfoPath := firstExisting(p.fs, nfoCandidates(p.fs, mediaPath, itemType))
+	if nfoPath != "" {
 		parsed, err := p.parseNFO(nfoPath)
 		if err != nil {
 			return nil, fmt.Errorf("parse nfo %q: %w", nfoPath, err)
@@ -214,13 +218,13 @@ func applyField(item *Item, person *Person, ratingName, name, value string) {
 		return
 	}
 	switch name {
-	case "title":
+	case "title", "name", "localtitle":
 		item.Title = value
 	case "originaltitle":
 		item.OriginalTitle = value
 	case "sorttitle":
 		item.SortTitle = value
-	case "plot", "outline":
+	case "plot", "outline", "review", "biography":
 		if item.Overview == "" {
 			item.Overview = value
 		}
@@ -236,7 +240,7 @@ func applyField(item *Item, person *Person, ratingName, name, value string) {
 		item.Studios = appendUnique(item.Studios, splitList(value)...)
 	case "country":
 		item.Countries = appendUnique(item.Countries, splitList(value)...)
-	case "mpaa", "certification", "contentrating":
+	case "mpaa", "certification", "contentrating", "customrating":
 		item.ContentRating = value
 	case "original_language", "originallanguage":
 		item.OriginalLanguage = strings.ToLower(value)
@@ -275,7 +279,7 @@ func applyField(item *Item, person *Person, ratingName, name, value string) {
 
 func (p *Provider) findImages(mediaPath string) []Image {
 	var images []Image
-	for _, candidate := range imageCandidates(mediaPath) {
+	for _, candidate := range imageCandidates(p.fs, mediaPath) {
 		if exists(p.fs, candidate.path) {
 			images = append(images, Image{Kind: candidate.kind, Path: candidate.path})
 		}
@@ -288,7 +292,7 @@ type imageCandidate struct {
 	path string
 }
 
-func imageCandidates(mediaPath string) []imageCandidate {
+func imageCandidates(fs FS, mediaPath string) []imageCandidate {
 	base := trimExt(mediaPath)
 	var out []imageCandidate
 	for _, spec := range []struct {
@@ -306,11 +310,68 @@ func imageCandidates(mediaPath string) []imageCandidate {
 			}
 		}
 	}
-	return out
+	dir := sidecarDir(fs, mediaPath)
+	if dir == "" {
+		dir = filepath.Dir(mediaPath)
+	}
+	for _, spec := range []struct {
+		kind  string
+		names []string
+	}{
+		{"poster", []string{"poster", "folder"}},
+		{"backdrop", []string{"backdrop", "fanart"}},
+		{"logo", []string{"logo", "clearlogo"}},
+		{"still", []string{"thumb", "still"}},
+	} {
+		for _, name := range spec.names {
+			for _, ext := range []string{".png", ".jpg", ".jpeg", ".webp"} {
+				out = append(out, imageCandidate{kind: spec.kind, path: filepath.Join(dir, name+ext)})
+			}
+		}
+	}
+	return dedupeImageCandidates(out)
 }
 
 func sidecarPath(mediaPath, ext string) string {
 	return trimExt(mediaPath) + ext
+}
+
+func nfoCandidates(fs FS, mediaPath, itemType string) []string {
+	itemType = strings.ToLower(strings.TrimSpace(itemType))
+	dir := sidecarDir(fs, mediaPath)
+	sameBasename := sidecarPath(mediaPath, ".nfo")
+	var out []string
+	add := func(paths ...string) {
+		for _, path := range paths {
+			if strings.TrimSpace(path) != "" {
+				out = append(out, path)
+			}
+		}
+	}
+
+	switch itemType {
+	case "movie", "musicvideo", "music_video":
+		add(sameBasename, filepath.Join(dir, "movie.nfo"), filepath.Join(dir, "VIDEO_TS.nfo"))
+	case "series", "show", "tvshow", "tv_show":
+		add(filepath.Join(dir, "tvshow.nfo"), sameBasename)
+	case "season":
+		add(filepath.Join(dir, "season.nfo"), sameBasename)
+	case "episode":
+		add(sameBasename)
+	default:
+		add(sameBasename, filepath.Join(dir, "movie.nfo"), filepath.Join(dir, "tvshow.nfo"), filepath.Join(dir, "season.nfo"), filepath.Join(dir, "VIDEO_TS.nfo"))
+	}
+	return dedupeStrings(out)
+}
+
+func sidecarDir(fs FS, mediaPath string) string {
+	if mediaPath == "" {
+		return ""
+	}
+	if info, err := fs.Stat(mediaPath); err == nil && info.IsDir() {
+		return mediaPath
+	}
+	return filepath.Dir(mediaPath)
 }
 
 func trimExt(path string) string {
@@ -323,6 +384,42 @@ func exists(fs FS, path string) bool {
 	}
 	info, err := fs.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func firstExisting(fs FS, paths []string) string {
+	for _, path := range paths {
+		if exists(fs, path) {
+			return path
+		}
+	}
+	return ""
+}
+
+func dedupeStrings(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func dedupeImageCandidates(values []imageCandidate) []imageCandidate {
+	seen := make(map[string]bool, len(values))
+	out := make([]imageCandidate, 0, len(values))
+	for _, value := range values {
+		key := value.kind + "\x00" + value.path
+		if value.path == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, value)
+	}
+	return out
 }
 
 func providerID(mediaPath string) string {

@@ -24,7 +24,7 @@ func NewProviderWithSidecars(sidecars *sidecar.Provider) *Provider {
 }
 
 func (p *Provider) GetMetadata(_ context.Context, req MetadataRequest) (*sidecar.LookupResult, error) {
-	return p.sidecars.Lookup(req.FilePath)
+	return p.sidecars.Lookup(req.FilePath, req.ContentType)
 }
 
 func (p *Provider) GetImages(_ context.Context, filePath string) ([]sidecar.Image, error) {

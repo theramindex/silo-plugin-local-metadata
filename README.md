@@ -1,7 +1,7 @@
 # Silo Local Metadata
 
 `silo.local-metadata` is a read-only metadata provider plugin that exposes
-same-basename NFO files and local artwork sidecars to Silo's
+Jellyfin-compatible NFO files and local artwork sidecars to Silo's
 `metadata_provider.v1` pipeline.
 
 Repository: https://github.com/theramindex/silo-plugin-local-metadata
@@ -15,7 +15,7 @@ Lives under **Video / Metadata** (`category: "Video/Metadata"` in
 
 | Type | ID | Purpose |
 | --- | --- | --- |
-| `metadata_provider.v1` | `local-metadata` | Reads same-basename `.nfo` metadata and local poster/backdrop/logo/still artwork beside the media file. Default priority `1` for movie / series / season / episode. |
+| `metadata_provider.v1` | `local-metadata` | Reads local `.nfo` metadata and local poster/backdrop/logo/still artwork beside the media file. Default priority `1` for movie / series / season / episode. |
 
 ## Dependencies
 
@@ -28,14 +28,18 @@ playback wiring.
 
 The plugin is intentionally narrow and read-only:
 
-- `Movie.mkv` may read `Movie.nfo`
+- Movies may read `movie.nfo`, `VIDEO_TS.nfo`, or `Movie.nfo`
+- Series may read `tvshow.nfo`
+- Seasons may read `season.nfo`
+- Episodes may read `Episode Name.nfo`
 - `Movie.mkv` may read `Movie-poster.png`, `Movie-poster.jpg`,
   `Movie.poster.jpg`, and equivalent `jpeg`/`webp` files
+- Movies and folders may read Jellyfin-style folder artwork like `poster.png`,
+  `folder.jpg`, `fanart.jpg`, `backdrop.png`, `logo.png`, or `thumb.jpg`
 - Backdrops use same-basename `-backdrop`, `.backdrop`, `-fanart`, or `.fanart`
 - Logos use same-basename `-logo` or `.logo`
 - Stills use same-basename `-thumb`, `.thumb`, `-still`, or `.still`
-- It does not read parent folder metadata such as `tvshow.nfo`, `folder.jpg`,
-  `poster.png`, or `season01-poster.jpg`
+- Season-specific artwork names like `season01-poster.jpg` are not implemented yet
 - It does not write or modify media folders
 
 ## Supported NFO Fields

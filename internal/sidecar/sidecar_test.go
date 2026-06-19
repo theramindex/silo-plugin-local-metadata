@@ -58,7 +58,37 @@ func TestLookupReadsSameBasenameNFO(t *testing.T) {
 	}
 }
 
-func TestLookupFindsOnlySameBasenameImages(t *testing.T) {
+func TestLookupReadsJellyfinMovieFolderNFO(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	media := filepath.Join(dir, "Movie Folder", "Movie File [WEBDL-1080p].mkv")
+	writeFile(t, media, "")
+	writeFile(t, filepath.Join(filepath.Dir(media), "movie.nfo"), `<movie>
+  <title>Folder NFO Title</title>
+  <plot>Read from Jellyfin movie.nfo.</plot>
+  <year>2026</year>
+</movie>`)
+
+	got, err := NewProvider().Lookup(media, "movie")
+	if err != nil {
+		t.Fatalf("Lookup() error = %v", err)
+	}
+	if got == nil {
+		t.Fatal("Lookup() returned nil")
+	}
+	if got.Item.Title != "Folder NFO Title" {
+		t.Fatalf("Title = %q", got.Item.Title)
+	}
+	if got.Item.Year != 2026 {
+		t.Fatalf("Year = %d", got.Item.Year)
+	}
+	if got.Item.Metadata["sidecar_nfo_path"] != filepath.Join(filepath.Dir(media), "movie.nfo") {
+		t.Fatalf("sidecar_nfo_path = %#v", got.Item.Metadata["sidecar_nfo_path"])
+	}
+}
+
+func TestLookupFindsSameBasenameAndJellyfinFolderImages(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -66,8 +96,9 @@ func TestLookupFindsOnlySameBasenameImages(t *testing.T) {
 	writeFile(t, media, "")
 	writeFile(t, filepath.Join(dir, "Show - S01E02-poster.png"), "png")
 	writeFile(t, filepath.Join(dir, "Show - S01E02-fanart.jpg"), "jpg")
-	writeFile(t, filepath.Join(dir, "poster.png"), "ignored")
-	writeFile(t, filepath.Join(dir, "tvshow.nfo"), "<tvshow><title>Ignored</title></tvshow>")
+	writeFile(t, filepath.Join(dir, "poster.png"), "folder poster")
+	writeFile(t, filepath.Join(dir, "folder.jpg"), "folder jpg")
+	writeFile(t, filepath.Join(dir, "tvshow.nfo"), "<tvshow><title>Show Title</title></tvshow>")
 
 	got, err := NewProvider().Lookup(media)
 	if err != nil {
@@ -76,13 +107,48 @@ func TestLookupFindsOnlySameBasenameImages(t *testing.T) {
 	if got == nil {
 		t.Fatal("Lookup() returned nil")
 	}
-	if len(got.Images) != 2 {
+	if len(got.Images) != 4 {
 		t.Fatalf("Images length = %d, images = %#v", len(got.Images), got.Images)
 	}
+	byName := map[string]string{}
 	for _, img := range got.Images {
-		if filepath.Base(img.Path) == "poster.png" {
-			t.Fatalf("generic poster.png should not be treated as same-basename sidecar: %#v", got.Images)
+		byName[filepath.Base(img.Path)] = img.Kind
+	}
+	for name, kind := range map[string]string{
+		"Show - S01E02-poster.png": "poster",
+		"Show - S01E02-fanart.jpg": "backdrop",
+		"poster.png":               "poster",
+		"folder.jpg":               "poster",
+	} {
+		if byName[name] != kind {
+			t.Fatalf("image %s kind = %q, images = %#v", name, byName[name], got.Images)
 		}
+	}
+}
+
+func TestLookupReadsJellyfinSeriesAndSeasonNFO(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	seriesDir := filepath.Join(dir, "Example Show")
+	seasonDir := filepath.Join(seriesDir, "Season 01")
+	writeFile(t, filepath.Join(seriesDir, "tvshow.nfo"), `<tvshow><title>Series Title</title></tvshow>`)
+	writeFile(t, filepath.Join(seasonDir, "season.nfo"), `<season><title>Season Title</title></season>`)
+
+	series, err := NewProvider().Lookup(seriesDir, "series")
+	if err != nil {
+		t.Fatalf("series Lookup() error = %v", err)
+	}
+	if series == nil || series.Item.Title != "Series Title" {
+		t.Fatalf("series Lookup() = %#v", series)
+	}
+
+	season, err := NewProvider().Lookup(seasonDir, "season")
+	if err != nil {
+		t.Fatalf("season Lookup() error = %v", err)
+	}
+	if season == nil || season.Item.Title != "Season Title" {
+		t.Fatalf("season Lookup() = %#v", season)
 	}
 }
 
@@ -121,6 +187,9 @@ func TestResolveImageUsesFileURLForExistingSidecarPath(t *testing.T) {
 
 func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
+	}
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
