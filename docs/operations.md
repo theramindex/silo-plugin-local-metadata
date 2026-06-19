@@ -15,6 +15,17 @@ metadata.
 
 ## Common Workflows
 
+### Enable request diagnostics
+
+Set `SILO_LOCAL_METADATA_DEBUG=1` on the Silo container, restart Silo, then
+refresh one affected library. The plugin logs each `GetMetadata` request with
+the item type, file path, NFO candidates, selected NFO path, local image count,
+and match result.
+
+The plugin always logs a warning if Silo calls it without
+`GetMetadataRequest.file_path`, because local sidecars cannot be resolved
+without that path.
+
 ### "My NFO was ignored"
 
 1. Confirm the NFO uses a supported Jellyfin-compatible name:

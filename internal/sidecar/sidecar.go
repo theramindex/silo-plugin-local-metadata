@@ -60,6 +60,14 @@ type Provider struct {
 	fs FS
 }
 
+type Diagnostics struct {
+	MediaPath     string
+	ItemType      string
+	NFOCandidates []string
+	NFOPath       string
+	ImageCount    int
+}
+
 type FS interface {
 	Open(name string) (io.ReadCloser, error)
 	Stat(name string) (os.FileInfo, error)
@@ -110,6 +118,18 @@ func (p *Provider) Lookup(mediaPath string, itemTypes ...string) (*LookupResult,
 		Item:       item,
 		Images:     images,
 	}, nil
+}
+
+func (p *Provider) Diagnostics(mediaPath, itemType string) Diagnostics {
+	mediaPath = strings.TrimSpace(mediaPath)
+	candidates := nfoCandidates(p.fs, mediaPath, itemType)
+	return Diagnostics{
+		MediaPath:     mediaPath,
+		ItemType:      strings.ToLower(strings.TrimSpace(itemType)),
+		NFOCandidates: candidates,
+		NFOPath:       firstExisting(p.fs, candidates),
+		ImageCount:    len(p.findImages(mediaPath)),
+	}
 }
 
 func (p *Provider) ResolveImage(path string) (string, error) {
