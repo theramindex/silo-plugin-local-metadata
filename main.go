@@ -78,7 +78,7 @@ func (s *metadataServer) GetEpisodes(context.Context, *pluginv1.GetEpisodesReque
 }
 
 func (s *metadataServer) GetImages(context.Context, *pluginv1.GetImagesRequest) (*pluginv1.GetImagesResponse, error) {
-	// SDK v0.4.0 does not pass file_path to GetImages. Local sidecar images are
+	// SDK v0.7.0 does not pass file_path to GetImages. Local sidecar images are
 	// still returned through GetMetadata's poster/backdrop/logo fields when Silo
 	// provides file_path there.
 	return &pluginv1.GetImagesResponse{}, nil

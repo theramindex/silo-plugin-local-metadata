@@ -61,7 +61,7 @@ Local sidecar images are returned as opaque `local-metadata://<absolute-path>`
 URIs. When the host asks to resolve the image, the plugin validates that the
 file still exists and returns a `file://` URL for host-side ingestion.
 
-SDK v0.4.0 does not pass `file_path` to `GetImages`, so sidecar images are
+SDK v0.7.0 does not pass `file_path` to `GetImages`, so sidecar images are
 attached through `GetMetadata` fields (`poster_path`, `backdrop_path`,
 `logo_path`) rather than the standalone image listing RPC.
 

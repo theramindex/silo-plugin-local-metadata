@@ -6,7 +6,7 @@
 
 **Architecture:** Implement a thin Silo SDK runtime wrapper around a testable sidecar package. The sidecar package owns path derivation, NFO XML parsing, image discovery, and image URL resolution. The runtime wrapper maps parsed fields into Silo `metadata_provider.v1` protobuf messages.
 
-**Tech Stack:** Go 1.26, Silo plugin SDK v0.4.0, Go standard library XML parser, protobuf `structpb`.
+**Tech Stack:** Go 1.26, Silo plugin SDK v0.7.0, Go standard library XML parser, protobuf `structpb`.
 
 ---
 
@@ -49,7 +49,7 @@ Load embedded manifest, calculate binary checksum, serve runtime and metadata pr
 
 - [x] **Step 3: Implement metadata methods**
 
-`GetMetadata`, `ResolveImageURL`, and `ResolveImageURLs` use sidecar data. `GetImages` returns an empty response because SDK v0.4.0 does not pass `file_path` to that request. Unsupported methods return empty responses.
+`GetMetadata`, `ResolveImageURL`, and `ResolveImageURLs` use sidecar data. `GetImages` returns an empty response because SDK v0.7.0 does not pass `file_path` to that request. Unsupported methods return empty responses.
 
 - [x] **Step 4: Verify runtime tests**
 

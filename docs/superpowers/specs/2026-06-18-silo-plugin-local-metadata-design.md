@@ -24,7 +24,7 @@ The plugin does not read parent-folder files such as `tvshow.nfo`, `folder.jpg`,
 
 `GetMetadata` uses the request `file_path`, parses same-basename `.nfo` when present, finds same-basename images, and returns a partial `MetadataItem`. Missing fields stay empty so Silo can merge remote provider data.
 
-`GetMetadata` also attaches poster, backdrop, and logo sidecar paths when those files exist. `ResolveImageURL` resolves the plugin's internal `local-metadata://` paths to local `file://` URLs for host-side ingestion. SDK v0.4.0 does not pass `file_path` to `GetImages`, so `GetImages` returns an empty response in this version.
+`GetMetadata` also attaches poster, backdrop, and logo sidecar paths when those files exist. `ResolveImageURL` resolves the plugin's internal `local-metadata://` paths to local `file://` URLs for host-side ingestion. SDK v0.7.0 does not pass `file_path` to `GetImages`, so `GetImages` returns an empty response in this version.
 
 `Search`, person detail, seasons, and episodes return empty responses in the first version because sidecar metadata is file-path based.
 
