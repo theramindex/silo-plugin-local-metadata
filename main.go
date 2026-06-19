@@ -7,7 +7,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
+	"time"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -22,6 +25,11 @@ import (
 var version string
 
 const localProviderIDKey = "local"
+
+var (
+	gregorianYearPattern = regexp.MustCompile(`\b(19[0-9]{2}|20[0-9]{2})\b`)
+	persianYearPattern   = regexp.MustCompile(`\b(13[0-9]{2}|14[0-9]{2})\b`)
+)
 
 type runtimeServer struct {
 	pluginv1.UnimplementedRuntimeServer
@@ -56,9 +64,10 @@ func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataR
 	if title == "" {
 		title = "Local Metadata"
 	}
+	year := localSearchYear(title, req.GetYear())
 
-	providerID := localSearchProviderID(itemType, title, req.GetYear())
-	debugf("local-metadata: Search matched item_type=%q query=%q year=%d provider_id=%q", itemType, title, req.GetYear(), providerID)
+	providerID := localSearchProviderID(itemType, title, year)
+	debugf("local-metadata: Search matched item_type=%q query=%q year=%d provider_id=%q", itemType, title, year, providerID)
 	providerIDs, err := stringStruct(map[string]string{
 		localProviderIDKey:   providerID,
 		sidecar.CapabilityID: providerID,
@@ -72,7 +81,7 @@ func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataR
 				ProviderId:  providerID,
 				ItemType:    itemType,
 				Title:       title,
-				Year:        req.GetYear(),
+				Year:        year,
 				ProviderIds: providerIDs,
 			},
 		},
@@ -300,6 +309,31 @@ func supportsSearchItemType(itemType string) bool {
 func localSearchProviderID(itemType, title string, year int32) string {
 	sum := sha256.Sum256([]byte(fmt.Sprintf("local-search\x00%s\x00%s\x00%d", strings.ToLower(itemType), strings.ToLower(title), year)))
 	return hex.EncodeToString(sum[:])[:24]
+}
+
+func localSearchYear(title string, requestYear int32) int32 {
+	if requestYear > 0 {
+		return requestYear
+	}
+	if year := parseSearchYear(gregorianYearPattern, title); year > 0 {
+		return year
+	}
+	if year := parseSearchYear(persianYearPattern, title); year > 0 {
+		return year + 621
+	}
+	return int32(time.Now().Year())
+}
+
+func parseSearchYear(pattern *regexp.Regexp, title string) int32 {
+	match := pattern.FindString(title)
+	if match == "" {
+		return 0
+	}
+	year, err := strconv.Atoi(match)
+	if err != nil {
+		return 0
+	}
+	return int32(year)
 }
 
 func debugf(format string, args ...any) {

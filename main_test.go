@@ -63,6 +63,31 @@ func TestMetadataServerSearchReturnsSyntheticCandidateForEmptyQuery(t *testing.T
 	if got := results[0].GetTitle(); got != "Local Metadata" {
 		t.Fatalf("Title = %q, want Local Metadata", got)
 	}
+	if got := results[0].GetYear(); got <= 0 {
+		t.Fatalf("Year = %d, want positive fallback year", got)
+	}
+}
+
+func TestMetadataServerSearchInfersPersianCalendarYear(t *testing.T) {
+	t.Parallel()
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	resp, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{
+		Query:    "فیلم جدید درام عاشق پیشه (محصول سال 1402)",
+		ItemType: "movie",
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	results := resp.GetResults()
+	if len(results) != 1 {
+		t.Fatalf("Search() results length = %d, want 1", len(results))
+	}
+	if got := results[0].GetYear(); got != 2023 {
+		t.Fatalf("Year = %d, want 2023", got)
+	}
 }
 
 func TestMetadataServerSearchSkipsUnsupportedItemType(t *testing.T) {
