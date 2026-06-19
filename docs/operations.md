@@ -22,6 +22,10 @@ refresh one affected library. The plugin logs each `GetMetadata` request with
 the item type, file path, NFO candidates, selected NFO path, local image count,
 and match result.
 
+Diagnostics are also appended to `/tmp/silo-local-metadata-debug.log` by
+default. Set `SILO_LOCAL_METADATA_DEBUG_LOG=/path/to/file.log` to override the
+file path.
+
 The plugin always logs a warning if Silo calls it without
 `GetMetadataRequest.file_path`, because local sidecars cannot be resolved
 without that path.

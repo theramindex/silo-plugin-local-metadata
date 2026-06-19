@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -17,12 +18,14 @@ type MetadataRequest struct {
 type Provider struct {
 	sidecars *sidecar.Provider
 	debug    bool
+	debugLog string
 }
 
 func NewProvider() *Provider {
 	return &Provider{
 		sidecars: sidecar.NewProvider(),
 		debug:    debugEnabled(),
+		debugLog: debugLogPath(),
 	}
 }
 
@@ -30,16 +33,17 @@ func NewProviderWithSidecars(sidecars *sidecar.Provider) *Provider {
 	return &Provider{
 		sidecars: sidecars,
 		debug:    debugEnabled(),
+		debugLog: debugLogPath(),
 	}
 }
 
 func (p *Provider) GetMetadata(_ context.Context, req MetadataRequest) (*sidecar.LookupResult, error) {
 	if strings.TrimSpace(req.FilePath) == "" {
-		log.Printf("local-metadata: GetMetadata missing file_path item_type=%q", req.ContentType)
+		p.debugf("local-metadata: GetMetadata missing file_path item_type=%q", req.ContentType)
 	}
 	if p.debug {
 		diag := p.sidecars.Diagnostics(req.FilePath, req.ContentType)
-		log.Printf(
+		p.debugf(
 			"local-metadata: GetMetadata request item_type=%q file_path=%q nfo_found=%q nfo_candidates=%q image_count=%d",
 			req.ContentType,
 			diag.MediaPath,
@@ -53,11 +57,11 @@ func (p *Provider) GetMetadata(_ context.Context, req MetadataRequest) (*sidecar
 	if p.debug {
 		switch {
 		case err != nil:
-			log.Printf("local-metadata: GetMetadata error item_type=%q file_path=%q error=%v", req.ContentType, strings.TrimSpace(req.FilePath), err)
+			p.debugf("local-metadata: GetMetadata error item_type=%q file_path=%q error=%v", req.ContentType, strings.TrimSpace(req.FilePath), err)
 		case result == nil:
-			log.Printf("local-metadata: GetMetadata empty item_type=%q file_path=%q", req.ContentType, strings.TrimSpace(req.FilePath))
+			p.debugf("local-metadata: GetMetadata empty item_type=%q file_path=%q", req.ContentType, strings.TrimSpace(req.FilePath))
 		default:
-			log.Printf(
+			p.debugf(
 				"local-metadata: GetMetadata matched item_type=%q file_path=%q provider_id=%q title=%q year=%d image_count=%d",
 				req.ContentType,
 				strings.TrimSpace(req.FilePath),
@@ -86,4 +90,29 @@ func (p *Provider) ResolveImage(_ context.Context, path string) (string, error) 
 func debugEnabled() bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv("SILO_LOCAL_METADATA_DEBUG")))
 	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func debugLogPath() string {
+	if value := strings.TrimSpace(os.Getenv("SILO_LOCAL_METADATA_DEBUG_LOG")); value != "" {
+		return value
+	}
+	return "/tmp/silo-local-metadata-debug.log"
+}
+
+func (p *Provider) debugf(format string, args ...any) {
+	message := fmt.Sprintf(format, args...)
+	log.Print(message)
+	if !p.debug && !strings.Contains(message, "missing file_path") {
+		return
+	}
+	if p.debugLog == "" {
+		return
+	}
+	file, err := os.OpenFile(p.debugLog, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		log.Printf("local-metadata: open debug log %q: %v", p.debugLog, err)
+		return
+	}
+	defer file.Close()
+	_, _ = fmt.Fprintln(file, message)
 }
