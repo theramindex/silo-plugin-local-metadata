@@ -10,6 +10,53 @@ import (
 	"github.com/theramindex/silo-plugin-local-metadata/provider"
 )
 
+func TestMetadataServerSearchReturnsSyntheticLocalCandidate(t *testing.T) {
+	t.Parallel()
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	resp, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{
+		Query:    "Local Movie",
+		ItemType: "movie",
+		Year:     2025,
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	results := resp.GetResults()
+	if len(results) != 1 {
+		t.Fatalf("Search() results length = %d, want 1", len(results))
+	}
+	result := results[0]
+	if result.GetTitle() != "Local Movie" {
+		t.Fatalf("Title = %q", result.GetTitle())
+	}
+	if result.GetProviderId() == "" {
+		t.Fatal("ProviderId is empty")
+	}
+	if got := result.GetProviderIds().AsMap()["local-metadata"]; got != result.GetProviderId() {
+		t.Fatalf("provider_ids[local-metadata] = %v, want %q", got, result.GetProviderId())
+	}
+}
+
+func TestMetadataServerSearchSkipsEmptyQuery(t *testing.T) {
+	t.Parallel()
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	resp, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{
+		ItemType: "movie",
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(resp.GetResults()) != 0 {
+		t.Fatalf("Search() results = %#v, want empty", resp.GetResults())
+	}
+}
+
 func TestMetadataServerGetMetadataUsesFilePathSidecar(t *testing.T) {
 	t.Parallel()
 

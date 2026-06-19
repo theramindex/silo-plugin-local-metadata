@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"strings"
 
 	"google.golang.org/protobuf/types/known/structpb"
 
@@ -43,8 +44,29 @@ func (s *runtimeServer) Configure(context.Context, *pluginv1.ConfigureRequest) (
 	return &pluginv1.ConfigureResponse{}, nil
 }
 
-func (s *metadataServer) Search(context.Context, *pluginv1.SearchMetadataRequest) (*pluginv1.SearchMetadataResponse, error) {
-	return &pluginv1.SearchMetadataResponse{}, nil
+func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataRequest) (*pluginv1.SearchMetadataResponse, error) {
+	title := strings.TrimSpace(req.GetQuery())
+	itemType := strings.TrimSpace(req.GetItemType())
+	if title == "" || !supportsSearchItemType(itemType) {
+		return &pluginv1.SearchMetadataResponse{}, nil
+	}
+
+	providerID := localSearchProviderID(itemType, title, req.GetYear())
+	providerIDs, err := stringStruct(map[string]string{sidecar.CapabilityID: providerID})
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.SearchMetadataResponse{
+		Results: []*pluginv1.ProviderSearchResult{
+			{
+				ProviderId:  providerID,
+				ItemType:    itemType,
+				Title:       title,
+				Year:        req.GetYear(),
+				ProviderIds: providerIDs,
+			},
+		},
+	}, nil
 }
 
 func (s *metadataServer) GetMetadata(ctx context.Context, req *pluginv1.GetMetadataRequest) (*pluginv1.GetMetadataResponse, error) {
@@ -251,4 +273,18 @@ func floatStruct(value map[string]float64) (*structpb.Struct, error) {
 		converted[key] = entry
 	}
 	return structpb.NewStruct(converted)
+}
+
+func supportsSearchItemType(itemType string) bool {
+	switch strings.ToLower(strings.TrimSpace(itemType)) {
+	case "movie", "musicvideo", "music_video", "series", "show", "tvshow", "tv_show", "season", "episode":
+		return true
+	default:
+		return false
+	}
+}
+
+func localSearchProviderID(itemType, title string, year int32) string {
+	sum := sha256.Sum256([]byte(fmt.Sprintf("local-search\x00%s\x00%s\x00%d", strings.ToLower(itemType), strings.ToLower(title), year)))
+	return hex.EncodeToString(sum[:])[:24]
 }
