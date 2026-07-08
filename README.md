@@ -69,6 +69,25 @@ SDK v0.7.0 does not pass `file_path` to `GetImages`, so sidecar images are
 attached through `GetMetadata` fields (`poster_path`, `backdrop_path`,
 `logo_path`) rather than the standalone image listing RPC.
 
+## Search Matching
+
+When Silo includes the media path in search provider IDs as `_filepath`, the
+plugin reads sidecars next to that file during `Search` and returns a stable
+local provider ID. This lets local NFO metadata participate in the same
+search-then-fetch pipeline as remote providers, while still keeping the plugin
+read-only.
+
+`SILO_LOCAL_METADATA_ROOTS` remains available as a fallback/workaround for hosts
+that do not pass `_filepath`. Set it to a comma-separated list of movie roots to
+index `movie.nfo` files, normalize noisy release queries, and let
+`GetMetadata(provider_id)` resolve the matched local item without a `file_path`.
+
+Example:
+
+```sh
+SILO_LOCAL_METADATA_ROOTS=/movies
+```
+
 ## Build And Release
 
 Local build targets:

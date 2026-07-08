@@ -61,6 +61,27 @@ func (s *metadataServer) Search(_ context.Context, req *pluginv1.SearchMetadataR
 		debugf("local-metadata: Search skipped item_type=%q query=%q year=%d reason=unsupported_item_type", req.GetItemType(), req.GetQuery(), req.GetYear())
 		return &pluginv1.SearchMetadataResponse{}, nil
 	}
+	indexed, err := s.runtime.provider.Search(context.Background(), provider.SearchRequest{
+		ContentType: itemType,
+		Query:       title,
+		Year:        int(req.GetYear()),
+		ProviderIDs: stringMapFromStruct(req.GetProviderIds()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if indexed.Authoritative || indexed.IndexConfigured {
+		results := make([]*pluginv1.ProviderSearchResult, 0, len(indexed.Results))
+		for _, result := range indexed.Results {
+			searchResult, err := providerSearchResultFromLookup(result, itemType)
+			if err != nil {
+				return nil, err
+			}
+			debugf("local-metadata: Search indexed matched item_type=%q query=%q year=%d provider_id=%q", itemType, title, searchResult.GetYear(), searchResult.GetProviderId())
+			results = append(results, searchResult)
+		}
+		return &pluginv1.SearchMetadataResponse{Results: results}, nil
+	}
 	if title == "" {
 		title = "Local Metadata"
 	}
@@ -92,6 +113,7 @@ func (s *metadataServer) GetMetadata(ctx context.Context, req *pluginv1.GetMetad
 	result, err := s.runtime.provider.GetMetadata(ctx, provider.MetadataRequest{
 		ContentType: req.GetItemType(),
 		FilePath:    req.GetFilePath(),
+		ProviderID:  req.GetProviderId(),
 	})
 	if err != nil {
 		return nil, err
@@ -104,6 +126,32 @@ func (s *metadataServer) GetMetadata(ctx context.Context, req *pluginv1.GetMetad
 		return nil, err
 	}
 	return &pluginv1.GetMetadataResponse{Item: item}, nil
+}
+
+func providerSearchResultFromLookup(result *sidecar.LookupResult, itemType string) (*pluginv1.ProviderSearchResult, error) {
+	rawProviderIDs := map[string]string{
+		localProviderIDKey:   result.ProviderID,
+		sidecar.CapabilityID: result.ProviderID,
+	}
+	for key, value := range result.Item.ProviderIDs {
+		if value != "" {
+			rawProviderIDs[key] = value
+		}
+	}
+	providerIDs, err := stringStruct(rawProviderIDs)
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.ProviderSearchResult{
+		ProviderId:    result.ProviderID,
+		ItemType:      itemType,
+		Title:         result.Item.Title,
+		OriginalTitle: result.Item.OriginalTitle,
+		Year:          int32(result.Item.Year),
+		Overview:      result.Item.Overview,
+		ImageUrl:      searchImageURL(result.Images),
+		ProviderIds:   providerIDs,
+	}, nil
 }
 
 func (s *metadataServer) GetPersonDetail(context.Context, *pluginv1.GetPersonDetailRequest) (*pluginv1.GetPersonDetailResponse, error) {
@@ -286,6 +334,22 @@ func stringStruct(value map[string]string) (*structpb.Struct, error) {
 	return structpb.NewStruct(converted)
 }
 
+func stringMapFromStruct(value *structpb.Struct) map[string]string {
+	if value == nil {
+		return nil
+	}
+	out := make(map[string]string, len(value.GetFields()))
+	for key, entry := range value.GetFields() {
+		if stringValue := strings.TrimSpace(entry.GetStringValue()); stringValue != "" {
+			out[key] = stringValue
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func floatStruct(value map[string]float64) (*structpb.Struct, error) {
 	if len(value) == 0 {
 		return nil, nil
@@ -295,6 +359,20 @@ func floatStruct(value map[string]float64) (*structpb.Struct, error) {
 		converted[key] = entry
 	}
 	return structpb.NewStruct(converted)
+}
+
+func searchImageURL(images []sidecar.Image) string {
+	for _, image := range images {
+		if image.Kind == "poster" && image.Path != "" {
+			return sidecar.Scheme + image.Path
+		}
+	}
+	for _, image := range images {
+		if image.Path != "" {
+			return sidecar.Scheme + image.Path
+		}
+	}
+	return ""
 }
 
 func supportsSearchItemType(itemType string) bool {
