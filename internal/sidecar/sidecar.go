@@ -2,10 +2,12 @@ package sidecar
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +17,8 @@ import (
 const (
 	CapabilityID = "local-metadata"
 	Scheme       = CapabilityID + "://"
+
+	maxDataURLImageBytes = 8 * 1024 * 1024
 )
 
 type LookupResult struct {
@@ -137,14 +141,48 @@ func (p *Provider) ResolveImage(path string) (string, error) {
 	if !ok {
 		return "", nil
 	}
-	if !exists(p.fs, localPath) {
+	info, err := p.fs.Stat(localPath)
+	if err != nil || info.IsDir() {
 		return "", nil
 	}
-	abs, err := filepath.Abs(localPath)
+	if info.Size() > maxDataURLImageBytes {
+		return "", nil
+	}
+	rc, err := p.fs.Open(localPath)
 	if err != nil {
 		return "", err
 	}
-	return "file://" + filepath.ToSlash(abs), nil
+	defer rc.Close()
+
+	data, err := io.ReadAll(io.LimitReader(rc, maxDataURLImageBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(data) > maxDataURLImageBytes {
+		return "", nil
+	}
+	mimeType := sidecarImageMIMEType(localPath, data)
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return "data:" + mimeType + ";base64," + encoded, nil
+}
+
+func sidecarImageMIMEType(path string, data []byte) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	default:
+		mimeType := http.DetectContentType(data)
+		if strings.HasPrefix(mimeType, "image/") {
+			return mimeType
+		}
+		return "application/octet-stream"
+	}
 }
 
 func (p *Provider) parseNFO(path string) (Item, error) {

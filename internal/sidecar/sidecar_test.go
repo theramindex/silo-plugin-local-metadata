@@ -212,7 +212,7 @@ func TestLookupReturnsNilWhenNoSidecarExists(t *testing.T) {
 	}
 }
 
-func TestResolveImageUsesFileURLForExistingSidecarPath(t *testing.T) {
+func TestResolveImageUsesDataURLForExistingSidecarPath(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -223,7 +223,7 @@ func TestResolveImageUsesFileURLForExistingSidecarPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveImage() error = %v", err)
 	}
-	want := "file://" + filepath.ToSlash(image)
+	want := "data:image/jpeg;base64,anBn"
 	if got != want {
 		t.Fatalf("ResolveImage() = %q, want %q", got, want)
 	}
