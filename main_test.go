@@ -7,9 +7,44 @@ import (
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	pluginruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 	"github.com/theramindex/silo-plugin-local-metadata/internal/sidecar"
 	"github.com/theramindex/silo-plugin-local-metadata/provider"
+	"google.golang.org/grpc"
 )
+
+func TestManifestAdvertisesImageResolverCapability(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("loadManifest() error = %v", err)
+	}
+
+	for _, capability := range manifest.GetCapabilities() {
+		if capability.GetType() == "image_resolver.v1" && capability.GetId() == sidecar.CapabilityID {
+			return
+		}
+	}
+	t.Fatalf("manifest capabilities missing image_resolver.v1 id %q", sidecar.CapabilityID)
+}
+
+func TestRuntimeRegistersImageResolverServer(t *testing.T) {
+	t.Parallel()
+
+	rs := &runtimeServer{provider: provider.NewProvider()}
+	ms := &metadataServer{runtime: rs}
+	server := grpc.NewServer()
+	t.Cleanup(server.Stop)
+
+	err := (&pluginruntime.GRPCPlugin{Servers: runtimeServers(rs, ms)}).GRPCServer(nil, server)
+	if err != nil {
+		t.Fatalf("GRPCServer() error = %v", err)
+	}
+	if _, ok := server.GetServiceInfo()["silo.plugin.v1.ImageResolver"]; !ok {
+		t.Fatalf("ImageResolver service not registered; services=%v", server.GetServiceInfo())
+	}
+}
 
 func TestMetadataServerSearchReturnsSyntheticLocalCandidate(t *testing.T) {
 	t.Parallel()

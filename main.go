@@ -40,6 +40,7 @@ type runtimeServer struct {
 
 type metadataServer struct {
 	pluginv1.UnimplementedMetadataProviderServer
+	pluginv1.UnimplementedImageResolverServer
 	runtime *runtimeServer
 }
 
@@ -209,12 +210,18 @@ func main() {
 		provider: provider.NewProvider(),
 	}
 
+	ms := &metadataServer{runtime: rs}
 	runtime.Serve(runtime.ServeConfig{
-		Servers: runtime.CapabilityServers{
-			Runtime:          rs,
-			MetadataProvider: &metadataServer{runtime: rs},
-		},
+		Servers: runtimeServers(rs, ms),
 	})
+}
+
+func runtimeServers(rs *runtimeServer, ms *metadataServer) runtime.CapabilityServers {
+	return runtime.CapabilityServers{
+		Runtime:          rs,
+		MetadataProvider: ms,
+		ImageResolver:    ms,
+	}
 }
 
 func loadManifest() (*pluginv1.PluginManifest, error) {

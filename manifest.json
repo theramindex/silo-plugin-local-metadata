@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.local-metadata",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -31,6 +31,12 @@
           "episode": 1
         }
       }
+    },
+    {
+      "type": "image_resolver.v1",
+      "id": "local-metadata",
+      "display_name": "Silo Local Metadata Images",
+      "description": "Resolves local sidecar artwork paths for Silo image serving."
     }
   ],
   "global_config_schema": [],
