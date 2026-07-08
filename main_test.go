@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
+	"github.com/theramindex/silo-plugin-local-metadata/internal/sidecar"
 	"github.com/theramindex/silo-plugin-local-metadata/provider"
 )
 
@@ -192,6 +193,135 @@ func TestMetadataServerSearchUsesFilePathProviderIDSidecar(t *testing.T) {
 	}
 	if got := result.GetImageUrl(); got == "" {
 		t.Fatal("Search result ImageUrl is empty")
+	}
+}
+
+func TestMetadataServerGetImagesUsesFilePathProviderIDSidecar(t *testing.T) {
+	dir := t.TempDir()
+	movieDir := filepath.Join(dir, "movies", "Example Movie")
+	media := filepath.Join(movieDir, "Example Movie.mkv")
+	mustWrite(t, media, "")
+	mustWrite(t, filepath.Join(movieDir, "movie.nfo"), `<movie>
+  <title>Example Movie</title>
+</movie>`)
+	mustWrite(t, filepath.Join(movieDir, "poster.png"), "png")
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	providerIDs, err := stringStruct(map[string]string{
+		"_filepath":          media,
+		sidecar.CapabilityID: "local-sidecar-id",
+	})
+	if err != nil {
+		t.Fatalf("stringStruct() error = %v", err)
+	}
+	resp, err := ms.GetImages(context.Background(), &pluginv1.GetImagesRequest{
+		ProviderId:  "local-sidecar-id",
+		ItemType:    "movie",
+		ProviderIds: providerIDs,
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	images := resp.GetImages()
+	if len(images) != 1 {
+		t.Fatalf("GetImages() length = %d, want 1", len(images))
+	}
+	if got := images[0].GetKind(); got != "poster" {
+		t.Fatalf("Image kind = %q, want poster", got)
+	}
+	if got := images[0].GetUrl(); got == "" {
+		t.Fatal("Image URL is empty")
+	}
+}
+
+func TestMetadataServerGetImagesUsesSearchProviderIDCache(t *testing.T) {
+	dir := t.TempDir()
+	movieDir := filepath.Join(dir, "movies", "Example Movie")
+	media := filepath.Join(movieDir, "Example Movie.mkv")
+	mustWrite(t, media, "")
+	mustWrite(t, filepath.Join(movieDir, "movie.nfo"), `<movie>
+  <title>Example Movie</title>
+</movie>`)
+	mustWrite(t, filepath.Join(movieDir, "poster.png"), "png")
+
+	filePathProviderIDs, err := stringStruct(map[string]string{"_filepath": media})
+	if err != nil {
+		t.Fatalf("stringStruct() error = %v", err)
+	}
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	searchResp, err := ms.Search(context.Background(), &pluginv1.SearchMetadataRequest{
+		Query:       "Example Movie",
+		ItemType:    "movie",
+		ProviderIds: filePathProviderIDs,
+	})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	results := searchResp.GetResults()
+	if len(results) != 1 {
+		t.Fatalf("Search() results length = %d, want 1", len(results))
+	}
+
+	imageResp, err := ms.GetImages(context.Background(), &pluginv1.GetImagesRequest{
+		ProviderId:  results[0].GetProviderId(),
+		ItemType:    "movie",
+		ProviderIds: results[0].GetProviderIds(),
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	images := imageResp.GetImages()
+	if len(images) != 1 {
+		t.Fatalf("GetImages() length = %d, want 1", len(images))
+	}
+	if got := images[0].GetKind(); got != "poster" {
+		t.Fatalf("Image kind = %q, want poster", got)
+	}
+}
+
+func TestMetadataServerGetImagesUsesMetadataProviderIDCache(t *testing.T) {
+	dir := t.TempDir()
+	movieDir := filepath.Join(dir, "movies", "Example Movie")
+	media := filepath.Join(movieDir, "Example Movie.mkv")
+	mustWrite(t, media, "")
+	mustWrite(t, filepath.Join(movieDir, "movie.nfo"), `<movie>
+  <title>Example Movie</title>
+</movie>`)
+	mustWrite(t, filepath.Join(movieDir, "poster.png"), "png")
+
+	ms := &metadataServer{
+		runtime: &runtimeServer{provider: provider.NewProvider()},
+	}
+	metadataResp, err := ms.GetMetadata(context.Background(), &pluginv1.GetMetadataRequest{
+		ItemType: "movie",
+		FilePath: media,
+	})
+	if err != nil {
+		t.Fatalf("GetMetadata() error = %v", err)
+	}
+	item := metadataResp.GetItem()
+	if item == nil {
+		t.Fatal("GetMetadata().Item is nil")
+	}
+
+	imageResp, err := ms.GetImages(context.Background(), &pluginv1.GetImagesRequest{
+		ProviderId:  item.GetProviderId(),
+		ItemType:    "movie",
+		ProviderIds: item.GetProviderIds(),
+	})
+	if err != nil {
+		t.Fatalf("GetImages() error = %v", err)
+	}
+	images := imageResp.GetImages()
+	if len(images) != 1 {
+		t.Fatalf("GetImages() length = %d, want 1", len(images))
+	}
+	if got := images[0].GetKind(); got != "poster" {
+		t.Fatalf("Image kind = %q, want poster", got)
 	}
 }
 

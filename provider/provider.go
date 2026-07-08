@@ -33,13 +33,21 @@ type SearchResponse struct {
 	IndexConfigured bool
 }
 
+type ImageRequest struct {
+	ContentType string
+	ProviderID  string
+	ProviderIDs map[string]string
+}
+
 type Provider struct {
-	sidecars  *sidecar.Provider
-	debug     bool
-	debugLog  string
-	indexOnce sync.Once
-	index     *localIndex
-	indexErr  error
+	sidecars            *sidecar.Provider
+	debug               bool
+	debugLog            string
+	indexOnce           sync.Once
+	index               *localIndex
+	indexErr            error
+	resultsByProviderID map[string]*sidecar.LookupResult
+	resultMu            sync.RWMutex
 }
 
 type localIndex struct {
@@ -73,7 +81,7 @@ func (p *Provider) GetMetadata(_ context.Context, req MetadataRequest) (*sidecar
 		p.debugf("local-metadata: GetMetadata missing file_path item_type=%q", req.ContentType)
 	}
 	if strings.TrimSpace(req.FilePath) == "" && strings.TrimSpace(req.ProviderID) != "" {
-		result, err := p.lookupIndexedMetadata(req.ProviderID)
+		result, err := p.lookupCachedMetadata(req.ProviderID)
 		if p.debug {
 			switch {
 			case err != nil:
@@ -117,6 +125,7 @@ func (p *Provider) GetMetadata(_ context.Context, req MetadataRequest) (*sidecar
 			)
 		}
 	}
+	p.rememberLookupResult(result)
 	return result, err
 }
 
@@ -126,7 +135,9 @@ func (p *Provider) Search(_ context.Context, req SearchRequest) (SearchResponse,
 		if err != nil || result == nil {
 			return SearchResponse{Authoritative: true}, err
 		}
-		return SearchResponse{Results: []*sidecar.LookupResult{searchResultWithFallbacks(result, req.Query, req.Year)}, Authoritative: true}, nil
+		result = searchResultWithFallbacks(result, req.Query, req.Year)
+		p.rememberLookupResult(result)
+		return SearchResponse{Results: []*sidecar.LookupResult{result}, Authoritative: true}, nil
 	}
 	if !supportsIndexedItemType(req.ContentType) {
 		return SearchResponse{}, nil
@@ -150,7 +161,9 @@ func (p *Provider) Search(_ context.Context, req SearchRequest) (SearchResponse,
 	})
 	results := make([]*sidecar.LookupResult, 0, len(matches))
 	for _, match := range matches {
-		results = append(results, searchResultWithFallbacks(match.result, req.Query, req.Year))
+		result := searchResultWithFallbacks(match.result, req.Query, req.Year)
+		p.rememberLookupResult(result)
+		results = append(results, result)
 		if len(results) >= 5 {
 			break
 		}
@@ -158,8 +171,17 @@ func (p *Provider) Search(_ context.Context, req SearchRequest) (SearchResponse,
 	return SearchResponse{Results: results, Authoritative: true, IndexConfigured: true}, nil
 }
 
-func (p *Provider) GetImages(_ context.Context, filePath string) ([]sidecar.Image, error) {
-	result, err := p.sidecars.Lookup(filePath)
+func (p *Provider) GetImages(_ context.Context, req ImageRequest) ([]sidecar.Image, error) {
+	if filePath := filePathProviderID(req.ProviderIDs); filePath != "" {
+		result, err := p.sidecars.Lookup(filePath, req.ContentType)
+		if err != nil || result == nil {
+			return nil, err
+		}
+		p.rememberLookupResult(result)
+		return result.Images, nil
+	}
+
+	result, err := p.lookupCachedMetadata(providerIDFromImageRequest(req))
 	if err != nil || result == nil {
 		return nil, err
 	}
@@ -170,16 +192,37 @@ func (p *Provider) ResolveImage(_ context.Context, path string) (string, error) 
 	return p.sidecars.ResolveImage(path)
 }
 
-func (p *Provider) lookupIndexedMetadata(providerID string) (*sidecar.LookupResult, error) {
+func (p *Provider) lookupCachedMetadata(providerID string) (*sidecar.LookupResult, error) {
 	providerID = strings.TrimSpace(providerID)
 	if providerID == "" {
 		return nil, nil
+	}
+	if result := p.cachedLookupResult(providerID); result != nil {
+		return result, nil
 	}
 	index, configured, err := p.localIndex()
 	if err != nil || !configured {
 		return nil, err
 	}
 	return index.byProviderID[providerID], nil
+}
+
+func (p *Provider) cachedLookupResult(providerID string) *sidecar.LookupResult {
+	p.resultMu.RLock()
+	defer p.resultMu.RUnlock()
+	return p.resultsByProviderID[providerID]
+}
+
+func (p *Provider) rememberLookupResult(result *sidecar.LookupResult) {
+	if result == nil || strings.TrimSpace(result.ProviderID) == "" {
+		return
+	}
+	p.resultMu.Lock()
+	defer p.resultMu.Unlock()
+	if p.resultsByProviderID == nil {
+		p.resultsByProviderID = make(map[string]*sidecar.LookupResult)
+	}
+	p.resultsByProviderID[result.ProviderID] = result
 }
 
 func (p *Provider) localIndex() (*localIndex, bool, error) {
@@ -250,6 +293,18 @@ func filePathProviderID(providerIDs map[string]string) string {
 		}
 		if filePath := strings.TrimSpace(value); filePath != "" {
 			return filePath
+		}
+	}
+	return ""
+}
+
+func providerIDFromImageRequest(req ImageRequest) string {
+	if providerID := strings.TrimSpace(req.ProviderID); providerID != "" {
+		return providerID
+	}
+	for _, key := range []string{sidecar.CapabilityID, "local"} {
+		if providerID := strings.TrimSpace(req.ProviderIDs[key]); providerID != "" {
+			return providerID
 		}
 	}
 	return ""

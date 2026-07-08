@@ -166,11 +166,16 @@ func (s *metadataServer) GetEpisodes(context.Context, *pluginv1.GetEpisodesReque
 	return &pluginv1.GetEpisodesResponse{}, nil
 }
 
-func (s *metadataServer) GetImages(context.Context, *pluginv1.GetImagesRequest) (*pluginv1.GetImagesResponse, error) {
-	// SDK v0.7.0 does not pass file_path to GetImages. Local sidecar images are
-	// still returned through GetMetadata's poster/backdrop/logo fields when Silo
-	// provides file_path there.
-	return &pluginv1.GetImagesResponse{}, nil
+func (s *metadataServer) GetImages(ctx context.Context, req *pluginv1.GetImagesRequest) (*pluginv1.GetImagesResponse, error) {
+	images, err := s.runtime.provider.GetImages(ctx, provider.ImageRequest{
+		ContentType: req.GetItemType(),
+		ProviderID:  req.GetProviderId(),
+		ProviderIDs: stringMapFromStruct(req.GetProviderIds()),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.GetImagesResponse{Images: imageRecords(images)}, nil
 }
 
 func (s *metadataServer) ResolveImageURL(ctx context.Context, req *pluginv1.ResolveImageURLRequest) (*pluginv1.ResolveImageURLResponse, error) {
@@ -373,6 +378,23 @@ func searchImageURL(images []sidecar.Image) string {
 		}
 	}
 	return ""
+}
+
+func imageRecords(images []sidecar.Image) []*pluginv1.ImageRecord {
+	if len(images) == 0 {
+		return nil
+	}
+	records := make([]*pluginv1.ImageRecord, 0, len(images))
+	for _, image := range images {
+		if image.Path == "" {
+			continue
+		}
+		records = append(records, &pluginv1.ImageRecord{
+			Kind: image.Kind,
+			Url:  sidecar.Scheme + image.Path,
+		})
+	}
+	return records
 }
 
 func supportsSearchItemType(itemType string) bool {
