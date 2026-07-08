@@ -137,10 +137,11 @@ func (p *Provider) Diagnostics(mediaPath, itemType string) Diagnostics {
 }
 
 func (p *Provider) ResolveImage(path string) (string, error) {
-	localPath, ok := strings.CutPrefix(path, Scheme)
-	if !ok {
+	localPath := strings.TrimSpace(path)
+	if localPath == "" {
 		return "", nil
 	}
+	localPath = strings.TrimPrefix(localPath, Scheme)
 	info, err := p.fs.Stat(localPath)
 	if err != nil || info.IsDir() {
 		return "", nil

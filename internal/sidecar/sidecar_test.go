@@ -229,6 +229,23 @@ func TestResolveImageUsesDataURLForExistingSidecarPath(t *testing.T) {
 	}
 }
 
+func TestResolveImageUsesDataURLForBareResolverPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	image := filepath.Join(dir, "Movie-poster.jpg")
+	writeFile(t, image, "jpg")
+
+	got, err := NewProvider().ResolveImage(image)
+	if err != nil {
+		t.Fatalf("ResolveImage() error = %v", err)
+	}
+	want := "data:image/jpeg;base64,anBn"
+	if got != want {
+		t.Fatalf("ResolveImage() = %q, want %q", got, want)
+	}
+}
+
 func writeFile(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
